@@ -47,13 +47,18 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Direction.cs" />
-    <Compile Include="FigureType.cs" />
+    <Compile Include="FigureEntity\Figure.cs" />
+    <Compile Include="FigureEntity\FigureType.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Movements\DownMoveBehavior.cs" />
+    <Compile Include="Movements\IMoveBehavior.cs" />
+    <Compile Include="Movements\LeftMoveBehavior.cs" />
+    <Compile Include="Movements\RightMoveBehavior.cs" />
     <Compile Include="PointExtensions.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

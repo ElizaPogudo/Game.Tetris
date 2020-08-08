@@ -5,6 +5,8 @@
         None,
         Left,
         Right,
-        Rotate
+        Up,
+        Down,
+        Space
     }
 }

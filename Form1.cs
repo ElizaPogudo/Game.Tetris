@@ -1,11 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Game.Tetris
@@ -19,11 +12,35 @@ namespace Game.Tetris
             game.Restart();
 
             gameFieldPictureBox.Paint += gameFieldPictureBoxOnPaint;
+            KeyDown += OnKeyDown;
             game.Defeat += Game_Defeat;
 
-            timer.Interval = 300; // ms
+            timer.Interval = 700; // ms
             timer.Start();
             timer.Tick += TimerOnTick;
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs keyEventArgs)
+        {
+            switch (keyEventArgs.KeyCode)
+            {
+                case Keys.Left:
+                    game.DisplaceFigure(Direction.Left);
+                    gameFieldPictureBox.Refresh();
+                    break;
+                case Keys.Right:
+                    game.DisplaceFigure(Direction.Right);
+                    gameFieldPictureBox.Refresh();
+                    break;
+                case Keys.Up:
+                    break;
+                case Keys.Down:
+                    game.DisplaceFigure(Direction.Down);
+                    gameFieldPictureBox.Refresh();
+                    break;
+                case Keys.Space:
+                    break;
+            }
         }
 
         private void Game_Defeat()

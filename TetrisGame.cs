@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using Game.Tetris.FigureEntity;
+using Game.Tetris.Movements;
 
 namespace Game.Tetris
 {
@@ -20,20 +22,12 @@ namespace Game.Tetris
         private bool isPause;
         public event Action Defeat = delegate { };
 
-        private class Figure
-        {
-            public int KeyPoint { get; set; }
-            public List<Point> Points { get; set; }
-
-            public Figure(List<Point> pointsList, int keyPoint = 0)
+        IMoveBehavior[] movementBehaviors = new IMoveBehavior[]
             {
-                KeyPoint = keyPoint;
-                Points = pointsList;
-            }
-
-            public Figure(Point point) :this(new List<Point> { point })
-            {}
-        }
+                new DownMoveBehavior(),
+                new LeftMoveBehavior(),
+                new RightMoveBehavior()
+            };
 
         public void Restart()
         {
@@ -41,6 +35,80 @@ namespace Game.Tetris
             fallenFigures.Clear();
             activeFigure = GetRandomFigure();
             isPause = false;
+        }
+        private Figure GetRandomFigure()
+        {
+            Point FigureTopCell = new Point(4, 0);
+
+            FigureType figureType = (FigureType)random.Next(0, 7);
+            switch (figureType)
+            {
+                case FigureType.O:
+                    return new Figure(new List<Point>()
+                {
+                    FigureTopCell,
+                    new Point(FigureTopCell.X + 1, FigureTopCell.Y),
+                    new Point(FigureTopCell.X, FigureTopCell.Y + 1),
+                    new Point(FigureTopCell.X + 1, FigureTopCell.Y + 1)
+                });
+
+                case FigureType.I:
+                    return new Figure(new List<Point>()
+                {
+                    FigureTopCell,
+                    new Point(FigureTopCell.X, FigureTopCell.Y + 1),
+                    new Point(FigureTopCell.X, FigureTopCell.Y + 2),
+                    new Point(FigureTopCell.X, FigureTopCell.Y + 3)
+                }, 2);
+
+                case FigureType.J:
+                    return new Figure(new List<Point>()
+                {
+                   FigureTopCell,
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 2),
+                   new Point(FigureTopCell.X - 1, FigureTopCell.Y + 2)
+                }, 2);
+
+                case FigureType.L:
+                    return new Figure(new List<Point>()
+                {
+                   FigureTopCell,
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 2),
+                   new Point(FigureTopCell.X + 1, FigureTopCell.Y + 2)
+                }, 2);
+
+                case FigureType.S:
+                    return new Figure(new List<Point>()
+                {
+                   FigureTopCell,
+                   new Point(FigureTopCell.X + 1, FigureTopCell.Y),
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
+                   new Point(FigureTopCell.X - 1, FigureTopCell.Y + 1)
+                }, 3);
+
+                case FigureType.T:
+                    return new Figure(new List<Point>()
+                {
+                   FigureTopCell,
+                   new Point(FigureTopCell.X - 1, FigureTopCell.Y),
+                   new Point(FigureTopCell.X + 1, FigureTopCell.Y),
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 1)
+                }, 1);
+
+                case FigureType.Z:
+                    return new Figure(new List<Point>()
+                {
+                   FigureTopCell,
+                   new Point(FigureTopCell.X - 1, FigureTopCell.Y),
+                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
+                   new Point(FigureTopCell.X + 1, FigureTopCell.Y + 1)
+                }, 3);
+
+                case FigureType.P: return new Figure(FigureTopCell);
+                default: throw new ArgumentOutOfRangeException(nameof(figureType), figureType, null);
+            }
         }
         public void Draw(Graphics graphics)
         {
@@ -67,22 +135,41 @@ namespace Game.Tetris
             }
 
         }
+        public void DisplaceFigure(Direction direction)
+        {
+            if (isPause || !CanChangeDirection(direction, activeFigure))
+                return;
 
+            moveDirection = direction;
+
+            switch (moveDirection)
+            {
+                case Direction.Left:
+                    movementBehaviors[1].Move(activeFigure);
+                    moveDirection = Direction.None;
+                    break;
+                case Direction.Right:
+                    movementBehaviors[2].Move(activeFigure);
+                    moveDirection = Direction.None;
+                    break;
+                case Direction.Down:
+                    if (!IsReachedDestinationPoint(activeFigure))
+                        movementBehaviors[0].Move(activeFigure);
+                    moveDirection = Direction.None;
+                    break;
+            }
+        }
         public void Move()
         {
             if (isPause)
                 return;
 
-            if (!IsReachedBorder(activeFigure))
-            {
-                for (int i = 0; i < activeFigure.Points.Count; i++)
-                {
-                    activeFigure.Points[i] = activeFigure.Points[i].Displace(0, 1);
-                }
-            }
+            if (!IsReachedDestinationPoint(activeFigure)) 
+                movementBehaviors[0].Move(activeFigure);
             else 
             { 
                 activeFigure = GetRandomFigure();
+                moveDirection = Direction.None;
                 if (IsDefeat(activeFigure))
                 {
                     isPause = true;
@@ -92,10 +179,13 @@ namespace Game.Tetris
             }
         }
 
-        private bool IsReachedBorder(Figure figure)
+        private bool IsReachedDestinationPoint(Figure figure)
         {
-            if (fallenFigures.Any(p => p.Points.Any(n => figure.Points.Contains(n.Displace(0, -1)))) 
-                || figure.Points.Any(p => p.Displace(0, 1).Y == GameFieldHeightInCells))
+            IEnumerable<Point> nonFreePoints = fallenFigures.SelectMany(f => f.Points);
+            IEnumerable<Point> nextActiveFigurePoints = figure.Points.Select(p => p.Displace(0, 1));
+
+            if (nextActiveFigurePoints.Any(p => nonFreePoints.Contains(p))
+                || figure.Points.Any(p => p.Y == GameFieldHeightInCells - 1))
             {
                 fallenFigures.Add(figure);
                 return true;
@@ -105,76 +195,21 @@ namespace Game.Tetris
 
         private bool IsDefeat(Figure figure)
         {
-            return fallenFigures.Any(p => p.Points.Any(n => figure.Points.Contains(n)));
+            return fallenFigures.SelectMany(f => f.Points).Any(p => figure.Points.Contains(p));
         }
 
-        private Figure GetRandomFigure()
+        private bool CanChangeDirection(Direction direction, Figure figure)
         {
-            Point FigureTopCell = new Point(4, 0);
-
-            FigureType figureType = (FigureType)random.Next(0, 7);
-            switch (figureType)
+            switch (direction)
             {
-                case FigureType.O: return new Figure(new List<Point>() 
-                { 
-                    FigureTopCell, 
-                    new Point(FigureTopCell.X + 1, FigureTopCell.Y), 
-                    new Point(FigureTopCell.X, FigureTopCell.Y + 1), 
-                    new Point(FigureTopCell.X + 1, FigureTopCell.Y + 1) 
-                });
-
-                case FigureType.I: return new Figure(new List<Point>()
-                { 
-                    FigureTopCell, 
-                    new Point(FigureTopCell.X, FigureTopCell.Y + 1), 
-                    new Point(FigureTopCell.X, FigureTopCell.Y + 2), 
-                    new Point(FigureTopCell.X, FigureTopCell.Y + 3) 
-                }, 2);
-                
-                case FigureType.J: return new Figure(new List<Point>()
-                { 
-                   FigureTopCell, 
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 1), 
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 2), 
-                   new Point(FigureTopCell.X - 1, FigureTopCell.Y + 2) 
-                }, 2);
-
-                case FigureType.L: return new Figure(new List<Point>()
-                {
-                   FigureTopCell,
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 2),
-                   new Point(FigureTopCell.X + 1, FigureTopCell.Y + 2)
-                }, 2);
-
-                case FigureType.S: return new Figure(new List<Point>()
-                {
-                   FigureTopCell,
-                   new Point(FigureTopCell.X + 1, FigureTopCell.Y),
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
-                   new Point(FigureTopCell.X - 1, FigureTopCell.Y + 1)
-                }, 3);
-
-                case FigureType.T: return new Figure(new List<Point>()
-                {
-                   FigureTopCell,
-                   new Point(FigureTopCell.X - 1, FigureTopCell.Y),
-                   new Point(FigureTopCell.X + 1, FigureTopCell.Y),
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 1)
-                }, 1);
-
-                case FigureType.Z: return new Figure(new List<Point>()
-                {
-                   FigureTopCell,
-                   new Point(FigureTopCell.X - 1, FigureTopCell.Y),
-                   new Point(FigureTopCell.X, FigureTopCell.Y + 1),
-                   new Point(FigureTopCell.X + 1, FigureTopCell.Y + 1)
-                }, 3);
-
-                case FigureType.P: return new Figure(FigureTopCell);
-                default: throw new ArgumentOutOfRangeException(nameof(figureType), figureType, null);
+                case Direction.Left:
+                    return !figure.Points.Any(p => p.X == 0);
+                case Direction.Right:
+                    return !figure.Points.Any(p => p.X == GameFieldWidthInCells - 1);
+                case Direction.Space:
+                    return moveDirection != Direction.Space;
             }
+            return true;
         }
-
     }
 }
