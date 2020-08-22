@@ -46,7 +46,7 @@
             this.gameFieldPictureBox.Size = new System.Drawing.Size(230, 460);
             this.gameFieldPictureBox.TabIndex = 0;
             this.gameFieldPictureBox.TabStop = false;
-            this.gameFieldPictureBox.Paint += new System.Windows.Forms.PaintEventHandler(this.gameFieldPictureBoxOnPaint);
+            this.gameFieldPictureBox.Paint += new System.Windows.Forms.PaintEventHandler(this.GameFieldPictureBoxOnPaint);
             // 
             // scoreLabelName
             // 

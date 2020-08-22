@@ -11,11 +11,11 @@ namespace Game.Tetris
             InitializeComponent();
             game.Restart();
 
-            gameFieldPictureBox.Paint += gameFieldPictureBoxOnPaint;
+            gameFieldPictureBox.Paint += GameFieldPictureBoxOnPaint;
             gameHintPictureBox.Paint += GameHintPictureBoxOnPaint;
             KeyDown += OnKeyDown;
             game.Defeat += GameOnDefeat;
-            game.TotalChanged += GameOnTotalChanged;
+            game.GamePointsChanged += GamePointsChanged;
 
             timer.Interval = 700; // ms
             timer.Start();
@@ -27,9 +27,9 @@ namespace Game.Tetris
             game.DrawHint(paintEventArgs.Graphics);
         }
 
-        private void GameOnTotalChanged()
+        private void GamePointsChanged()
         {
-            score.Text = game.Total.ToString();
+            score.Text = game.GamePoints.ToString();
         }
 
         private void OnKeyDown(object sender, KeyEventArgs keyEventArgs)
@@ -62,7 +62,7 @@ namespace Game.Tetris
         private void GameOnDefeat()
         {
             timer.Stop();
-            MessageBox.Show($"Игра закончена! Ваш счет {game.Total}.");
+            MessageBox.Show($"Игра закончена! Ваш счет {game.GamePoints}.");
             game.Restart();
             timer.Start();
         }
@@ -74,7 +74,7 @@ namespace Game.Tetris
             gameHintPictureBox.Refresh();
         }
 
-        private void gameFieldPictureBoxOnPaint(object sender, PaintEventArgs paintEventArgs)
+        private void GameFieldPictureBoxOnPaint(object sender, PaintEventArgs paintEventArgs)
         {
             game.Draw(paintEventArgs.Graphics);
         }

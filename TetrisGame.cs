@@ -1,4 +1,4 @@
-﻿using Game.Tetris.FigureEntity;
+﻿using Game.Tetris.Figures;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -16,22 +16,23 @@ namespace Game.Tetris
 
         private Figure activeFigure;
         private Figure nextFigure;
-        private List<Point> nonFreePoints = new List<Point>();
+        private List<Point> occupiedPoints = new List<Point>();
         private bool isPause;
 
-        public int Total { get; set; }
-        public event Action TotalChanged = delegate { };
+        public int GamePoints { get; set; }
+        public event Action GamePointsChanged = delegate { };
         public event Action Defeat = delegate { };
 
         public void Restart()
         {
-            Total = 0;
-            TotalChanged();
-            nonFreePoints.Clear();
+            GamePoints = 0;
+            GamePointsChanged();
+            occupiedPoints.Clear();
             activeFigure = Figure.GetRandomFigure();
             nextFigure = Figure.GetRandomFigure();
             isPause = false;
         }
+
         public void Draw(Graphics graphics)
         {
             for (int i = 0; i < GameFieldWidthInCells; i++)
@@ -44,7 +45,7 @@ namespace Game.Tetris
                 graphics.DrawLine(Pens.Gray, 0, i * CellSize, GameFieldWidth, i * CellSize);
             }
 
-            foreach (Point point in nonFreePoints)
+            foreach (Point point in occupiedPoints)
             {
                 graphics.FillRectangle(Brushes.Blue, point.X * CellSize, point.Y * CellSize, CellSize, CellSize);
             }
@@ -55,6 +56,7 @@ namespace Game.Tetris
             }
 
         }
+
         public void DrawHint(Graphics graphics)
         {
             for (int i = 0; i < 4; i++)
@@ -72,6 +74,7 @@ namespace Game.Tetris
                 graphics.FillRectangle(Brushes.Blue, (point.X - 3) * CellSize, point.Y * CellSize, CellSize, CellSize);
             }
         }
+
         public void MoveDown()
         {
             if (isPause)
@@ -79,7 +82,7 @@ namespace Game.Tetris
 
             if (!IsReachedDestinationPoint(activeFigure.Points))
             {
-                for (int i = 0; i < activeFigure.Points.Count; i++)
+                for (int i = 0; i < activeFigure.Points.Length; i++)
                 {
                     activeFigure.Points[i] = activeFigure.Points[i].Displace(0, 1);
                 }
@@ -89,52 +92,44 @@ namespace Game.Tetris
                 GetNextFigure();
             }
         }
+
         public void MoveRight()
         {
-            if (!IsReachedRightBorder(activeFigure))
+            Point[] currentPoints = activeFigure.Points.ToArray();
+            if (!IsReachedRightBorder(activeFigure) && CanMoveRight(currentPoints))
             {
-                for (int i = 0; i < activeFigure.Points.Count; i++)
-                {
-                    activeFigure.Points[i] = activeFigure.Points[i].Displace(1, 0);
-                }
+                activeFigure.Points.MoveRight();
             }
         }
+
         public void MoveLeft()
         {
-            if (!IsReachedLeftBorder(activeFigure))
+            Point[] currentPoints = activeFigure.Points.ToArray();
+            if (!IsReachedLeftBorder(activeFigure) && CanMoveLeft(currentPoints))
             {
-                for (int i = 0; i < activeFigure.Points.Count; i++)
-                {
-                    activeFigure.Points[i] = activeFigure.Points[i].Displace(-1, 0);
-                }
+                activeFigure.Points.MoveLeft();
             }
         }
+
         public void MoveUp()
         {
             if (activeFigure.HasKeyPoint)
             {
-                Point keyPoint = activeFigure.Points[0];
-                List<Point> rotatedPoints = new List<Point>() { keyPoint };
+                Point[] rotatedPoints = activeFigure.RotateFigure();
 
-                for (int i = 1; i < activeFigure.Points.Count(); i++)
+                if (CanRotate(rotatedPoints) && !IsReachedDestinationPoint(activeFigure.Points))
                 {
-                    int x = keyPoint.X + (keyPoint.Y - activeFigure.Points[i].Y);
-                    int y = keyPoint.Y + (activeFigure.Points[i].X - keyPoint.X);
-                    rotatedPoints.Add(new Point(x, y));
-                }
-
-                if (CanRotate(rotatedPoints))
-                {
-                    activeFigure.Points.Clear();
+                    Array.Clear(activeFigure.Points, 0, activeFigure.Points.Length);
                     activeFigure.Points = rotatedPoints;
                 }
             }
         }
+
         public void MoveSpace()
         {
             while (!IsReachedDestinationPoint(activeFigure.Points))
             {
-                for (int i = 0; i < activeFigure.Points.Count; i++)
+                for (int i = 0; i < activeFigure.Points.Length; i++)
                 {
                     activeFigure.Points[i] = activeFigure.Points[i].Displace(0, 1);
                 }
@@ -142,6 +137,7 @@ namespace Game.Tetris
             GetNextFigure();
         }
 
+        #region Проверки
         private bool IsReachedRightBorder(Figure figure)
         {
             return figure.Points.Any(p => p.X == GameFieldWidthInCells - 1);
@@ -150,57 +146,90 @@ namespace Game.Tetris
         {
             return figure.Points.Any(p => p.X == 0);
         }
-        private bool IsReachedDestinationPoint(List<Point> figurePoints)
+        private bool IsReachedDestinationPoint(Point[] figurePoints)
         {
             IEnumerable<Point> nextActiveFigurePoints = figurePoints.Select(p => p.Displace(0, 1));
 
-            if (nextActiveFigurePoints.Any(p => nonFreePoints.Contains(p))
+            if (nextActiveFigurePoints.Any(p => occupiedPoints.Contains(p))
                 || figurePoints.Any(p => p.Y == GameFieldHeightInCells - 1))
             {
-                nonFreePoints.AddRange(figurePoints);
-                FilledHorizontalLinesCount();
+                occupiedPoints.AddRange(figurePoints);
+                DropBlocks();
                 return true;
             }
             return false;
         }
         private bool IsDefeat(Figure figure)
         {
-            return nonFreePoints.Any(p => figure.Points.Contains(p));
+            return occupiedPoints.Any(p => figure.Points.Contains(p));
         }
-        private bool CanRotate(List<Point> figurePoints)
+        private bool CanRotate(Point[] figurePoints)
         {
-            return !figurePoints.Any(p => nonFreePoints.Contains(p)) && figurePoints.All(p => p.X >= 0 && p.X < GameFieldWidthInCells);
+            return !figurePoints.Any(p => occupiedPoints.Contains(p)) && figurePoints.All(p => p.X >= 0 && p.X < GameFieldWidthInCells);
         }
-        private int FilledHorizontalLinesCount()
+        private bool CanMoveRight(Point[] figurePoints)
         {
-            var yAxisValuesOfFilledLines = nonFreePoints.GroupBy(p => p.Y, (key, points) => new { Key = key, Count = points.Count() })
-                .Where(x => x.Count == GameFieldWidthInCells).Select(x => x.Key);
-            int rowsCount = yAxisValuesOfFilledLines.Count();
+            return !figurePoints.MoveRight().Any(p => occupiedPoints.Contains(p));
+        }
+        private bool CanMoveLeft(Point[] figurePoints)
+        {
+            return !figurePoints.MoveLeft().Any(p => occupiedPoints.Contains(p));
+        }
+
+        #endregion
+
+        #region Вспомогательные методы
+        private void DropBlocks()
+        {
+            int[] yAxisValuesOfFilledLines = occupiedPoints.GroupBy(p => p.Y, (key, points) => new { Key = key, Count = points.Count() })
+                .Where(x => x.Count == GameFieldWidthInCells).Select(x => x.Key).OrderByDescending(x => x).ToArray();
+
+            int rowsCount = 0;
+
+            bool IsIncreaseByOne = true;
+
+            if (!yAxisValuesOfFilledLines.Length.Equals( 0) && yAxisValuesOfFilledLines[0] == GameFieldHeightInCells - 1)
+            {
+                if (yAxisValuesOfFilledLines.Length == 1)
+                {
+                    rowsCount = 1;
+                }
+                else
+                {
+                    int i = 0;
+                    rowsCount = 1;
+                    while (IsIncreaseByOne && i < yAxisValuesOfFilledLines.Length - 1)
+                    {
+                        if (yAxisValuesOfFilledLines[i] == yAxisValuesOfFilledLines[i+1] + 1)
+                        {
+                            rowsCount++;
+                            i++;
+                        }
+                        else
+                        {
+                            IsIncreaseByOne = false;
+                        }
+                    }
+                }
+            }
+            
 
             if (rowsCount > 0)
             {
                 var setToRemove = new HashSet<int>(yAxisValuesOfFilledLines);
-                nonFreePoints.RemoveAll(p => setToRemove.Contains(p.Y));
-                for (int i = 0; i < nonFreePoints.Count; i++)
+                occupiedPoints.RemoveAll(p => setToRemove.Contains(p.Y));
+                for (int i = 0; i < occupiedPoints.Count; i++)
                 {
-                    nonFreePoints[i] = nonFreePoints[i].Displace(0, rowsCount);
+                    occupiedPoints[i] = occupiedPoints[i].Displace(0, rowsCount);
                 }
-                Total += CountTotal(rowsCount);
-                TotalChanged();
-            }
 
-            return rowsCount;
-        } 
-        private int CountTotal(int rowsCount)
-        {
-            if (rowsCount == 0)
-                return 0;
-            if (rowsCount == 1)
-                return 100;
-            else
-            {
-                return (CountTotal(rowsCount - 1) + 50) * 2;
+                GamePoints += GetGamePoints(rowsCount);
+                GamePointsChanged();
             }
+        } 
+        private int GetGamePoints(int rowsCount)
+        {
+            return (int) (100 * Math.Pow(2, rowsCount)) - 100;
         }
         private void GetNextFigure()
         {
@@ -213,5 +242,8 @@ namespace Game.Tetris
                 return;
             }
         }
+
+        #endregion
+
     }
 }
